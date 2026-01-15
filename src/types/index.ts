@@ -1,5 +1,7 @@
 export type RPiModel = 'RPi5' | 'RPi4B' | 'RPi3B+' | 'RPiZeroW';
 
+export type InteractionMode = 'DRAG' | 'WIRE' | 'ERASE';
+
 export interface UIState {
     showEmulator: boolean;
     showToolbar: boolean;
@@ -7,7 +9,7 @@ export interface UIState {
 
 export type ComponentType =
     | 'LED' | 'Resistor' | 'Button' | 'Capacitor' | 'Diode' | 'Transistor' | 'Breadboard'
-    | 'Potentiometer' | 'Photocell' | 'DHT11' | 'Ultrasonic' | 'PIR' | 'Joystick' | 'Tilt' | 'Vibration' | 'Sound' | 'Smoke' | 'Gas' | 'Rain' | 'SoilMoisture' | 'Flame' | 'Pressure' | 'Compass' | 'Gyro' | 'HeartRate' | 'HallEffect' | 'Touch'
+    | 'Potentiometer' | 'Photocell' | 'DHT11' | 'Ultrasonic' | 'PIR' | 'Joystick' | 'Tilt' | 'Vibration' | 'Sound' | 'Smoke' | 'Gas' | 'Rain' | 'SoilMoisture' | 'Flame' | 'Pressure' | 'Compass' | 'Gyro' | 'HeartRate' | 'HallEffect' | 'Touch' | 'Fingerprint'
     | 'Servo' | 'Buzzer' | 'DCMotor' | 'Stepper' | 'Relay' | 'Laser' | 'RGBLED' | 'LEDMatrix' | 'SevenSegment' | 'Solenoid' | 'Pump'
     | 'OLED' | 'LCD1602' | 'LCD2004' | 'EInk' | 'TFTDisplay' | 'LEDBar'
     | 'RFID' | 'Bluetooth' | 'WiFi' | 'NRF24' | 'GPS' | 'IRReceiver' | 'IRRemote'
