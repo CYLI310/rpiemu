@@ -6,6 +6,7 @@ import { gpioSimulator } from '../utils/gpioSimulator.ts';
 interface WorkbenchProps {
     activeModel: RPiModel;
     interactionMode: InteractionMode;
+    selectedColor?: string;
 }
 
 export interface WorkbenchHandle {
@@ -115,11 +116,11 @@ const MODEL_CONFIGS: Record<RPiModel, ModelConfig> = {
     }
 };
 
-const Workbench = forwardRef<WorkbenchHandle, WorkbenchProps>(({ activeModel, interactionMode }, ref) => {
+const Workbench = forwardRef<WorkbenchHandle, WorkbenchProps>(({ activeModel, interactionMode, selectedColor = '#fff' }, ref) => {
     const config = MODEL_CONFIGS[activeModel];
     const [components, setComponents] = useState<CircuitComponent[]>([]);
     const [wires, setWires] = useState<Wire[]>([]);
-    const [boardPosition, setBoardPosition] = useState<Position>({ x: 300, y: 150 });
+    const [boardPosition, setBoardPosition] = useState<Position>({ x: 350, y: 150 });
     const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
     const [activeWire, setActiveWire] = useState<{ fromId: string; fromPin: string; mouseX: number; mouseY: number } | null>(null);
     const [, setUpdateTrigger] = useState(0);
@@ -197,7 +198,7 @@ const Workbench = forwardRef<WorkbenchHandle, WorkbenchProps>(({ activeModel, in
                 fromPin: activeWire.fromPin,
                 toId: compId,
                 toPin: pinId,
-                color: '#fff',
+                color: selectedColor,
             };
             setWires([...wires, newWire]);
             setActiveWire(null);
@@ -241,6 +242,21 @@ const Workbench = forwardRef<WorkbenchHandle, WorkbenchProps>(({ activeModel, in
         const idx = pinId.match(/^\d+$/) ? parseInt(pinId) : parseInt(pinId.slice(1)) - 1;
         const off = compOffs[idx % compOffs.length];
         return { x: comp.position.x + off.x + 12, y: comp.position.y + off.y + 12 };
+    };
+
+    const generateWirePath = (from: Position, to: Position) => {
+        // Calculate control points for a nice Bezier curve
+        const dx = to.x - from.x;
+        const dy = to.y - from.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        // Complex curve logic: use distance to determine sag
+        const cp1x = from.x + dx * 0.2;
+        const cp1y = from.y + dy * 0.8 + (dist * 0.2);
+        const cp2x = from.x + dx * 0.8;
+        const cp2y = from.y + dy * 0.2 + (dist * 0.2);
+
+        return `M ${from.x} ${from.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${to.x} ${to.y}`;
     };
 
     const renderComponentContent = (comp: CircuitComponent) => {
@@ -321,17 +337,23 @@ const Workbench = forwardRef<WorkbenchHandle, WorkbenchProps>(({ activeModel, in
                 {wires.map(wire => {
                     const from = getPinPos(wire.fromId, wire.fromPin);
                     const to = getPinPos(wire.toId, wire.toPin);
+                    const path = generateWirePath(from, to);
                     return (
                         <g key={wire.id} style={{ pointerEvents: interactionMode === 'ERASE' ? 'auto' : 'none', cursor: 'pointer' }} onClick={() => handleRemoveWire(wire.id)}>
-                            <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#fff" strokeWidth={interactionMode === 'ERASE' ? "4" : "1.5"} opacity={interactionMode === 'ERASE' ? 0.3 : 1} />
-                            <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#fff" strokeWidth="1.5" />
-                            <circle cx={from.x} cy={from.y} r="3" fill="#fff" />
-                            <circle cx={to.x} cy={to.y} r="3" fill="#fff" />
+                            {/* Hitbox line */}
+                            <path d={path} stroke="transparent" strokeWidth="12" fill="none" />
+                            {/* Visible line */}
+                            <path d={path} stroke={wire.color} strokeWidth={interactionMode === 'ERASE' ? "4" : "2"} fill="none" strokeLinecap="round" opacity={interactionMode === 'ERASE' ? 0.3 : 1} />
+                            <circle cx={from.x} cy={from.y} r="3" fill={wire.color} />
+                            <circle cx={to.x} cy={to.y} r="3" fill={wire.color} />
                         </g>
                     );
                 })}
                 {activeWire && (
-                    <line x1={getPinPos(activeWire.fromId, activeWire.fromPin).x} y1={getPinPos(activeWire.fromId, activeWire.fromPin).y} x2={activeWire.mouseX} y2={activeWire.mouseY} stroke="#fff" strokeWidth="1.5" strokeDasharray="6,4" />
+                    <path
+                        d={generateWirePath(getPinPos(activeWire.fromId, activeWire.fromPin), { x: activeWire.mouseX, y: activeWire.mouseY })}
+                        stroke={selectedColor} strokeWidth="2" fill="none" strokeDasharray="6,4"
+                    />
                 )}
             </svg>
 

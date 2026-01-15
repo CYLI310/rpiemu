@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
-import { X, Loader2, Maximize2, Minimize2 } from 'lucide-react';
+import { X, Loader2, Maximize2, Minimize2, Terminal as TerminalIcon, ChevronUp, ChevronDown } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // Import v86 as a module
@@ -26,12 +26,16 @@ const Emulator: React.FC<EmulatorProps> = ({ isOpen, onToggle }) => {
     const [isBooting, setIsBooting] = useState(false);
     const [currentMode, setCurrentMode] = useState<'mock' | 'v86'>('mock');
     const [isTerminalReady, setIsTerminalReady] = useState(false);
+    const [isMinimized, setIsMinimized] = useState(false);
+
+    // Bounds and size
+    const [size, setSize] = useState({ width: 600, height: 350 });
 
     useEffect(() => {
-        if (isOpen && terminalRef.current && !xtermRef.current) {
+        if (isOpen && !isMinimized && terminalRef.current && !xtermRef.current) {
             initTerminal();
         }
-    }, [isOpen]);
+    }, [isOpen, isMinimized]);
 
     useEffect(() => {
         if (isTerminalReady && modeRef.current === 'mock' && !isBooting && !hasBootedRef.current) {
@@ -190,60 +194,128 @@ const Emulator: React.FC<EmulatorProps> = ({ isOpen, onToggle }) => {
         }
     };
 
+    const handleResize = (e: React.MouseEvent) => {
+        const startX = e.clientX;
+        const startY = e.clientY;
+        const startWidth = size.width;
+        const startHeight = size.height;
+
+        const onMouseMove = (moveEvent: MouseEvent) => {
+            setSize({
+                width: Math.max(300, startWidth + (moveEvent.clientX - startX)),
+                height: Math.max(200, startHeight + (moveEvent.clientY - startY))
+            });
+            setTimeout(() => {
+                const fitAddon = new FitAddon();
+                xtermRef.current?.loadAddon(fitAddon);
+                fitAddon.fit();
+            }, 0);
+        };
+
+        const onMouseUp = () => {
+            window.removeEventListener('mousemove', onMouseMove);
+            window.removeEventListener('mouseup', onMouseUp);
+        };
+
+        window.addEventListener('mousemove', onMouseMove);
+        window.addEventListener('mouseup', onMouseUp);
+    };
+
     return (
         <AnimatePresence>
             {isOpen && (
                 <motion.div
-                    initial={{ y: '100%' }}
+                    drag={!isMaximized}
+                    dragListener={false}
+                    dragControls={isMinimized ? undefined : undefined} // Not using controls, using hande
+                    initial={{ y: '100%', opacity: 0 }}
                     animate={{
-                        y: 0,
-                        width: isMaximized ? 'calc(100% - 32px)' : 'calc(100% - 64px)',
-                        height: isMaximized ? 'calc(100% - 32px)' : '350px',
-                        bottom: isMaximized ? '16px' : '16px',
-                        left: isMaximized ? '16px' : '32px',
+                        y: isMinimized ? 'calc(100% - 50px)' : 0,
+                        opacity: 1,
+                        width: isMaximized ? 'calc(100% - 32px)' : (isMinimized ? '200px' : `${size.width}px`),
+                        height: isMaximized ? 'calc(100% - 32px)' : (isMinimized ? '40px' : `${size.height}px`),
+                        bottom: '16px',
+                        left: isMinimized ? '16px' : (isMaximized ? '16px' : 'calc(50% - 300px)'),
                     }}
-                    exit={{ y: '100%' }}
+                    exit={{ y: '100%', opacity: 0 }}
                     style={{
                         position: 'absolute',
-                        zIndex: 100,
+                        zIndex: 2000,
                         border: '2px solid #fff',
                         backgroundColor: '#000',
                         display: 'flex',
                         flexDirection: 'column',
                         overflow: 'hidden',
-                        transition: 'width 0.2s, height 0.2s'
+                        transition: 'width 0.2s, height 0.2s, left 0.2s, bottom 0.2s'
                     }}
                 >
-                    <div style={{
-                        padding: '10px 16px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        borderBottom: '2px solid #fff',
-                        background: '#000',
-                    }}>
+                    {/* Toolbar / Drag Handle */}
+                    <div
+                        onPointerDown={(e) => {
+                            // Only drag if not clicking buttons
+                            if ((e.target as HTMLElement).tagName !== 'BUTTON' && (e.target as HTMLElement).tagName !== 'SVG') {
+                                // drag handle logic
+                            }
+                        }}
+                        style={{
+                            padding: '10px 16px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            borderBottom: isMinimized ? 'none' : '2px solid #fff',
+                            background: '#000',
+                            cursor: 'grab',
+                            userSelect: 'none'
+                        }}
+                    >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <div style={{ width: 8, height: 8, background: '#fff' }} />
+                            <TerminalIcon size={14} />
                             <span style={{ fontSize: '0.7rem', fontWeight: 900, textTransform: 'uppercase' }}>
-                                CONSOLE: {currentMode === 'v86' ? 'OS_KERNEL' : 'READY'}
+                                {isMinimized ? 'TERMINAL_IDLE' : `CONSOLE: ${currentMode === 'v86' ? 'OS_KERNEL' : 'READY'}`}
                             </span>
                             {isBooting && <Loader2 size={12} className="animate-spin" />}
                         </div>
                         <div style={{ display: 'flex', gap: '8px' }}>
-                            {currentMode === 'mock' && !isBooting && (
+                            {!isMinimized && currentMode === 'mock' && !isBooting && (
                                 <button onClick={() => startV86(xtermRef.current!)} style={{ padding: '2px 8px', fontSize: '0.6rem', fontWeight: 900 }}>
                                     BOOT_KERNEL
                                 </button>
                             )}
-                            <button onClick={() => setIsMaximized(!isMaximized)} style={{ border: 'none' }}>
-                                {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                            <button onClick={() => setIsMinimized(!isMinimized)} style={{ border: 'none' }}>
+                                {isMinimized ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                             </button>
+                            {!isMinimized && (
+                                <button onClick={() => setIsMaximized(!isMaximized)} style={{ border: 'none' }}>
+                                    {isMaximized ? <Minimize2 size={14} /> : <Maximize2 size={14} />}
+                                </button>
+                            )}
                             <button onClick={onToggle} style={{ border: 'none' }}>
                                 <X size={14} />
                             </button>
                         </div>
                     </div>
-                    <div ref={terminalRef} style={{ flex: 1, padding: '8px', backgroundColor: '#000' }} />
+
+                    {!isMinimized && (
+                        <>
+                            <div ref={terminalRef} style={{ flex: 1, padding: '8px', backgroundColor: '#000' }} />
+                            {/* Resize Handle */}
+                            {!isMaximized && (
+                                <div
+                                    onMouseDown={handleResize}
+                                    style={{
+                                        position: 'absolute',
+                                        right: 0,
+                                        bottom: 0,
+                                        width: '15px',
+                                        height: '15px',
+                                        cursor: 'nwse-resize',
+                                        background: 'linear-gradient(135deg, transparent 50%, #fff 50%)',
+                                        zIndex: 2001
+                                    }}
+                                />
+                            )}
+                        </>
+                    )}
                 </motion.div>
             )}
         </AnimatePresence>
