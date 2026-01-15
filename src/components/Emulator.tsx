@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
@@ -17,7 +17,7 @@ interface EmulatorProps {
 const Emulator: React.FC<EmulatorProps> = ({ isOpen, onToggle }) => {
     const terminalRef = useRef<HTMLDivElement>(null);
     const xtermRef = useRef<Terminal | null>(null);
-    const v86Ref = useRef<any>(null);
+    const v86Ref = useRef<V86Starter | null>(null);
     const modeRef = useRef<'mock' | 'v86'>('mock');
     const currentLineRef = useRef('');
     const hasBootedRef = useRef(false);
@@ -25,25 +25,34 @@ const Emulator: React.FC<EmulatorProps> = ({ isOpen, onToggle }) => {
     const [isMaximized, setIsMaximized] = useState(false);
     const [isBooting, setIsBooting] = useState(false);
     const [currentMode, setCurrentMode] = useState<'mock' | 'v86'>('mock');
-    const [isTerminalReady, setIsTerminalReady] = useState(false);
 
-    useEffect(() => {
-        if (isOpen && terminalRef.current && !xtermRef.current) {
-            initTerminal();
+    const handleMockCommand = useCallback((cmd: string, term: Terminal) => {
+        const trimmed = cmd.trim().toLowerCase();
+        if (trimmed === 'ls') term.writeln('BIN  ETC  USR  HOME');
+        else if (trimmed === 'help') term.writeln('AVAILABLE: LS, HELP, CLEAR, GPIO-HELP');
+        else if (trimmed === 'clear') term.clear();
+        else if (trimmed !== '') term.writeln(`ERR: CMD NOT FOUND: ${trimmed}`);
+    }, []);
+
+    const handleMockInput = useCallback((data: string, term: Terminal) => {
+        const code = data.charCodeAt(0);
+        if (code === 13) {
+            term.writeln('');
+            handleMockCommand(currentLineRef.current, term);
+            currentLineRef.current = '';
+            if (modeRef.current === 'mock') term.write('> ');
+        } else if (code === 127) {
+            if (currentLineRef.current.length > 0) {
+                currentLineRef.current = currentLineRef.current.slice(0, -1);
+                term.write('\b \b');
+            }
+        } else {
+            currentLineRef.current += data;
+            term.write(data);
         }
-    }, [isOpen]);
+    }, [handleMockCommand]);
 
-    useEffect(() => {
-        if (isTerminalReady && modeRef.current === 'mock' && !isBooting && !hasBootedRef.current) {
-            hasBootedRef.current = true;
-            const timer = setTimeout(() => {
-                if (xtermRef.current) startV86(xtermRef.current);
-            }, 1000);
-            return () => clearTimeout(timer);
-        }
-    }, [isTerminalReady, isBooting]);
-
-    const initTerminal = () => {
+    const initTerminal = useCallback(() => {
         if (!terminalRef.current) return;
 
         const term = new Terminal({
@@ -84,37 +93,10 @@ const Emulator: React.FC<EmulatorProps> = ({ isOpen, onToggle }) => {
         });
 
         xtermRef.current = term;
-        setIsTerminalReady(true);
         window.addEventListener('resize', () => fitAddon.fit());
-    };
+    }, [handleMockInput]);
 
-    const handleMockInput = (data: string, term: Terminal) => {
-        const code = data.charCodeAt(0);
-        if (code === 13) {
-            term.writeln('');
-            handleMockCommand(currentLineRef.current, term);
-            currentLineRef.current = '';
-            if (modeRef.current === 'mock') term.write('> ');
-        } else if (code === 127) {
-            if (currentLineRef.current.length > 0) {
-                currentLineRef.current = currentLineRef.current.slice(0, -1);
-                term.write('\b \b');
-            }
-        } else {
-            currentLineRef.current += data;
-            term.write(data);
-        }
-    };
-
-    const handleMockCommand = (cmd: string, term: Terminal) => {
-        const trimmed = cmd.trim().toLowerCase();
-        if (trimmed === 'ls') term.writeln('BIN  ETC  USR  HOME');
-        else if (trimmed === 'help') term.writeln('AVAILABLE: LS, HELP, CLEAR, GPIO-HELP');
-        else if (trimmed === 'clear') term.clear();
-        else if (trimmed !== '') term.writeln(`ERR: CMD NOT FOUND: ${trimmed}`);
-    };
-
-    const startV86 = (term: Terminal) => {
+    const startV86 = useCallback((term: Terminal) => {
         if (isBooting || modeRef.current === 'v86' || !V86Starter) return;
 
         modeRef.current = 'v86';
@@ -147,9 +129,9 @@ const Emulator: React.FC<EmulatorProps> = ({ isOpen, onToggle }) => {
                     gpioSimulator.digitalWrite(parseInt(matchOut[1]), parseInt(matchOut[2]));
                     outputBuffer = '';
                 }
-                const matchMode = outputBuffer.match(/\[GPIO_MODE: (\d+) (\w+)\]/);
+                const matchMode: RegExpMatchArray | null = outputBuffer.match(/\[GPIO_MODE: (\d+) (\w+)\]/);
                 if (matchMode) {
-                    gpioSimulator.setMode(parseInt(matchMode[1]), matchMode[2].toUpperCase() as any);
+                    gpioSimulator.setMode(parseInt(matchMode[1]), matchMode[2].toUpperCase() as 'IN' | 'OUT' | 'PWM');
                     outputBuffer = '';
                 }
             });
@@ -188,7 +170,23 @@ const Emulator: React.FC<EmulatorProps> = ({ isOpen, onToggle }) => {
             modeRef.current = 'mock';
             setCurrentMode('mock');
         }
-    };
+    }, [isBooting]);
+
+    useEffect(() => {
+        if (isOpen && !xtermRef.current) {
+            initTerminal();
+        }
+    }, [isOpen, initTerminal]);
+
+    useEffect(() => {
+        if (xtermRef.current && modeRef.current === 'mock' && !isBooting && !hasBootedRef.current) {
+            hasBootedRef.current = true;
+            const timer = setTimeout(() => {
+                if (xtermRef.current) startV86(xtermRef.current);
+            }, 1000);
+            return () => clearTimeout(timer);
+        }
+    }, [isBooting, startV86]);
 
     return (
         <AnimatePresence>

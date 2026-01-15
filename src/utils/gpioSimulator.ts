@@ -75,10 +75,29 @@ export class GPIOSimulator {
 // Create a global instance
 export const gpioSimulator = new GPIOSimulator();
 
+declare global {
+    interface Window {
+        GPIO: {
+            setMode: (pin: number, mode: string) => void;
+            digitalWrite: (pin: number, value: number) => void;
+            digitalRead: (pin: number) => number;
+            setPWM: (pin: number, duty: number) => void;
+            status: () => string;
+        };
+    }
+}
+
 // Expose to window for terminal access
 if (typeof window !== 'undefined') {
-    (window as any).GPIO = {
-        setMode: (pin: number, mode: string) => gpioSimulator.setMode(pin, mode as any),
+    window.GPIO = {
+        setMode: (pin: number, mode: string) => {
+            const upperMode = mode.toUpperCase();
+            if (upperMode === 'IN' || upperMode === 'OUT' || upperMode === 'PWM') {
+                gpioSimulator.setMode(pin, upperMode);
+            } else {
+                console.error(`Invalid GPIO mode: ${mode}. Use IN, OUT, or PWM.`);
+            }
+        },
         digitalWrite: (pin: number, value: number) => gpioSimulator.digitalWrite(pin, value),
         digitalRead: (pin: number) => gpioSimulator.digitalRead(pin),
         setPWM: (pin: number, duty: number) => gpioSimulator.setPWM(pin, duty),
