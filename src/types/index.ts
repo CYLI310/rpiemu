@@ -24,7 +24,7 @@ export interface CircuitComponent {
     id: string;
     type: ComponentType;
     position: Position;
-    props?: any;
+    props?: Record<string, unknown>;
 }
 
 export interface Wire {

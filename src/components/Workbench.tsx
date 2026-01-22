@@ -125,11 +125,12 @@ const Workbench = forwardRef<WorkbenchHandle, WorkbenchProps>(({ activeModel, in
     const [activeWire, setActiveWire] = useState<{ fromId: string; fromPin: string; mouseX: number; mouseY: number } | null>(null);
     const [, setUpdateTrigger] = useState(0);
     const workbenchRef = useRef<HTMLDivElement>(null);
+    const idCounter = useRef(0);
 
     useImperativeHandle(ref, () => ({
         addComponent: (type: ComponentType) => {
             const newComponent: CircuitComponent = {
-                id: `comp-${Math.random().toString(36).substr(2, 9)}`,
+                id: `comp-${idCounter.current++}`,
                 type,
                 position: { x: 150 + Math.random() * 50, y: 150 + Math.random() * 50 },
                 props: {},
@@ -193,7 +194,7 @@ const Workbench = forwardRef<WorkbenchHandle, WorkbenchProps>(({ activeModel, in
                 return;
             }
             const newWire: Wire = {
-                id: `wire-${Math.random().toString(36).substr(2, 9)}`,
+                id: `wire-${idCounter.current++}`,
                 fromId: activeWire.fromId,
                 fromPin: activeWire.fromPin,
                 toId: compId,
